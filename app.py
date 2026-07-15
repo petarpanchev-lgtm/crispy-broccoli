@@ -8,6 +8,10 @@ Teams to Score), same calculator and bet log -- but running as a proper web
 app you can deploy for free on Streamlit Community Cloud and share a link
 to, instead of sending people a local file.
 
+Also includes a "Missing players" tab (injuries_lib.py) -- injury,
+suspension, and doubt reports for upcoming fixtures via API-Football's free
+tier, a separate provider/key from the odds side of this app.
+
 Run locally:
     pip install -r requirements.txt
     streamlit run app.py
@@ -27,6 +31,11 @@ from ev_scanner_lib import (
     kelly_stake,
     no_vig_probs,
     scan_all,
+)
+from injuries_lib import (
+    DEFAULT_FIXTURES_PER_LEAGUE,
+    LEAGUES as INJURY_LEAGUES,
+    scan_injuries_all,
 )
 
 st.set_page_config(page_title="+EV Sports Odds Scanner", layout="wide")
@@ -51,6 +60,14 @@ if "bet_log" not in st.session_state:
     st.session_state.bet_log = pd.DataFrame(
         columns=["date", "match", "market", "outcome", "book", "odds", "stake", "result"]
     )
+if "injury_rows" not in st.session_state:
+    st.session_state.injury_rows = []
+if "injury_stats" not in st.session_state:
+    st.session_state.injury_stats = None
+if "injury_sample_raw" not in st.session_state:
+    st.session_state.injury_sample_raw = None
+if "last_injury_scan_time" not in st.session_state:
+    st.session_state.last_injury_scan_time = None
 
 # ---------------------------------------------------------------------------
 # Sidebar
@@ -60,6 +77,12 @@ try:
     secret_key = st.secrets.get("ODDS_API_KEY", "")
 except Exception:
     secret_key = ""
+
+secret_football_key = ""
+try:
+    secret_football_key = st.secrets.get("API_FOOTBALL_KEY", "")
+except Exception:
+    secret_football_key = ""
 
 with st.sidebar:
     st.header("Settings")
@@ -84,6 +107,32 @@ with st.sidebar:
         "API endpoint (see the Both teams to score tab)."
     )
 
+    st.divider()
+    st.subheader("Missing players (beta)")
+    api_football_key_input = st.text_input(
+        "API-Football key",
+        value=secret_football_key,
+        type="password",
+        help="Separate free key from dashboard.api-football.com (100 requests/day, "
+             "no card). Different provider from the odds key above.",
+    )
+    fixtures_per_league = st.slider(
+        "Fixtures to check per league", 1, 10, DEFAULT_FIXTURES_PER_LEAGUE, 1,
+        help="Each fixture costs 1 request for the fixture list + 1 for its injury "
+             "report. Keep this low to stay inside the 100/day free budget.",
+    )
+    run_injury_scan = st.button("Run missing-players scan", use_container_width=True)
+    if st.session_state.last_injury_scan_time:
+        st.caption(
+            f"Last injury scan: {st.session_state.last_injury_scan_time.strftime('%Y-%m-%d %H:%M')}"
+        )
+    st.caption(
+        "Reports injuries/suspensions/doubts, available days ahead of kickoff. "
+        "This is NOT a predicted starting XI -- no free source publishes a confirmed "
+        "lineup more than 30-60 minutes before kickoff. Schema is unverified against "
+        "a live response -- check the raw JSON expander on the tab before trusting it."
+    )
+
 if run_scan:
     if not api_key_input:
         st.error("Enter an API key first (sign up free at the-odds-api.com).")
@@ -93,6 +142,19 @@ if run_scan:
         st.session_state.rows = rows
         st.session_state.scan_stats = stats
         st.session_state.last_scan_time = datetime.datetime.now()
+
+if run_injury_scan:
+    if not api_football_key_input:
+        st.error("Enter an API-Football key first (sign up free at dashboard.api-football.com).")
+    else:
+        with st.spinner("Checking upcoming fixtures for injuries/suspensions/doubts..."):
+            injury_rows, injury_stats, sample_raw = scan_injuries_all(
+                api_football_key_input, fixtures_per_league=fixtures_per_league
+            )
+        st.session_state.injury_rows = injury_rows
+        st.session_state.injury_stats = injury_stats
+        st.session_state.injury_sample_raw = sample_raw
+        st.session_state.last_injury_scan_time = datetime.datetime.now()
 
 # ---------------------------------------------------------------------------
 # Scan summary
@@ -111,10 +173,10 @@ elif not st.session_state.rows:
     st.info("Enter your API key in the sidebar and click **Run live scan** to pull real odds.")
 
 # ---------------------------------------------------------------------------
-# Market tabs + calculator + bet log
+# Market tabs + calculator + bet log + missing players
 # ---------------------------------------------------------------------------
-tab_1x2, tab_ou, tab_btts, tab_calc, tab_log = st.tabs(
-    ["1X2", "Over/Under 2.5", "Both teams to score", "Try your own odds", "Bet log"]
+tab_1x2, tab_ou, tab_btts, tab_calc, tab_log, tab_injuries = st.tabs(
+    ["1X2", "Over/Under 2.5", "Both teams to score", "Try your own odds", "Bet log", "Missing players"]
 )
 
 
@@ -277,3 +339,55 @@ with tab_log:
         )
     else:
         st.caption("No bets logged yet -- flag one from a market tab above.")
+
+with tab_injuries:
+    st.subheader("Missing players")
+    st.caption(
+        "Injuries, suspensions, and doubts for upcoming fixtures in the 5 leagues above, "
+        "via API-Football's free /injuries endpoint -- separate provider and key from the "
+        "odds side of this app. This is who's reported out or doubtful, days ahead of "
+        "kickoff, not a predicted starting XI (nobody publishes that free and reliably -- "
+        "confirmed lineups land 30-60 minutes before kickoff everywhere, paid or free)."
+    )
+
+    injury_stats = st.session_state.injury_stats
+    if injury_stats:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Fixtures checked", injury_stats["fixtures_checked"])
+        c2.metric("Entries found", len(st.session_state.injury_rows))
+        c3.metric("API requests used", injury_stats["requests_used"])
+        if injury_stats["leagues_with_no_fixtures"]:
+            st.caption(
+                "No fixtures scheduled yet for: " + ", ".join(injury_stats["leagues_with_no_fixtures"])
+            )
+        if injury_stats["errors"]:
+            st.warning("Some lookups failed: " + "; ".join(injury_stats["errors"]))
+    elif not st.session_state.injury_rows:
+        st.info(
+            "Enter your API-Football key in the sidebar and click **Run missing-players scan**."
+        )
+
+    if st.session_state.injury_sample_raw:
+        sample_fx, sample_injuries = st.session_state.injury_sample_raw
+        with st.expander("Raw JSON for the first fixture checked (schema sanity-check)"):
+            st.caption(
+                "Compare these field names against injuries_lib.py's parse_injury() -- "
+                "the parser was built from API-Football's docs, not a verified live "
+                "response. If names differ here, the table below is likely wrong."
+            )
+            st.json({"fixture": sample_fx, "injuries": sample_injuries})
+
+    if st.session_state.injury_rows:
+        idf = pd.DataFrame(st.session_state.injury_rows)
+        idf = idf.sort_values(["league", "date", "match"]).reset_index(drop=True)
+        display_idf = idf[["league", "match", "date", "team", "player", "status", "reason"]].rename(
+            columns={
+                "league": "League", "match": "Match", "date": "Kickoff",
+                "team": "Team", "player": "Player", "status": "Status", "reason": "Reason",
+            }
+        )
+        st.dataframe(display_idf, use_container_width=True, hide_index=True)
+    elif not injury_stats:
+        pass
+    else:
+        st.caption("No reported injuries/suspensions/doubts for the fixtures checked.")

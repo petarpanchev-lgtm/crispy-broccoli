@@ -6,6 +6,15 @@ and Marathonbet) so a stale single line can't flag a false value bet on its
 own. Covers three markets: 1X2 (match winner), Over/Under 2.5 goals, and
 Both Teams to Score.
 
+Also includes a **Missing players** tab -- injuries, suspensions, and doubts
+for upcoming fixtures in the same 5 competitions, via a separate free API
+(API-Football). This is player-level availability, days ahead of kickoff --
+not a predicted starting XI. No free or paid source reliably publishes a
+confirmed lineup more than 30-60 minutes before kickoff, and Flashscore's
+"predicted lineups" can't legally be scraped (their terms of use prohibit
+it, and there's no official API), so this tab reports the actual signal
+that's available early: who's out, doubtful, or suspended.
+
 This is the Streamlit version of the local HTML prototype -- same math
 (`ev_scanner_lib.py`), but runnable as a shareable web app instead of a file
 you send people.
@@ -17,28 +26,40 @@ you send people.
   is still an open assumption.
 - Both Teams to Score has patchier coverage than 1X2/totals on this API --
   don't be surprised by zero BTTS rows on some scans.
+- The Missing players tab's parser was built from API-Football's public
+  docs, not a verified live response (no key was available while building
+  it). Check the "Raw JSON" expander on that tab against `injuries_lib.py`'s
+  `parse_injury()` before trusting the table -- if field names have
+  drifted, fix the parser to match what you actually see there.
 
 ## Run it locally
 
 ```bash
 pip install -r requirements.txt
 cp .streamlit/secrets.toml.example .streamlit/secrets.toml
-# edit .streamlit/secrets.toml and paste in your real API key
+# edit .streamlit/secrets.toml and paste in your real API key(s)
 streamlit run app.py
 ```
 
 Get a free API key at https://the-odds-api.com (no card required, 500
-credits/month). A scan across 5 leagues x 3 markets costs about 15 credits,
+credits/month). A scan across 5 leagues x 2 markets costs about 10 credits,
 so daily runs stay well inside the free tier.
 
-If you'd rather not use secrets.toml, you can also just paste the key into
+For the Missing players tab, get a second, separate free key at
+https://dashboard.api-football.com/register (no card, 100 requests/day) and
+add it to `secrets.toml` as `API_FOOTBALL_KEY` the same way. Each fixture
+checked costs 2 requests (1 for the fixture list, 1 for its injury report),
+so keep the "fixtures per league" slider low if you're running this often.
+
+If you'd rather not use secrets.toml, you can also just paste either key into
 the sidebar each time you open the app -- it's kept only for that session.
 
 ## Put it on GitHub
 
-This folder isn't a git repo yet -- I couldn't run `git init` from my side
-(the mounted folder doesn't support git's lock files), so this needs to
-happen from a terminal on your own machine, inside this folder:
+If this is your first time setting this repo up: this folder isn't a git
+repo yet -- I couldn't run `git init` from my side (the mounted folder
+doesn't support git's lock files), so this needs to happen from a terminal
+on your own machine, inside this folder:
 
 1. If you see a `.git` folder here already, delete it first (it's a leftover
    from a failed attempt on my end, not a real repo) -- `rm -rf .git` on
@@ -65,9 +86,19 @@ happen from a terminal on your own machine, inside this folder:
    machine). This step has to be you -- I can't authenticate as you on
    GitHub.
 
-**Important:** `.streamlit/secrets.toml` and `odds_api_key.txt` are in
-`.gitignore` on purpose -- don't remove that, or your API key would end up
-public on GitHub.
+If you already have this repo pushed to GitHub from before (this folder
+already has a `.git` here), you can skip straight to committing and pushing
+the new files:
+```bash
+cd "path/to/Online Business/ev-scanner-app"
+git add -A
+git commit -m "Add Missing players tab (injuries/suspensions/doubts)"
+git push
+```
+
+**Important:** `.streamlit/secrets.toml`, `odds_api_key.txt`, and
+`api_football_key.txt` are all in `.gitignore` on purpose -- don't remove
+that, or your API keys would end up public on GitHub.
 
 ## Deploy for free on Streamlit Community Cloud
 
@@ -76,11 +107,15 @@ public on GitHub.
    the main file path to `app.py`.
 3. Before or after deploying, open the app's **Settings -> Secrets** and add:
    ```
-   ODDS_API_KEY = "your-real-key-here"
+   ODDS_API_KEY = "your-real-odds-api-key-here"
+   API_FOOTBALL_KEY = "your-real-api-football-key-here"
    ```
-   This keeps the key out of the public repo while still letting the
-   deployed app read it via `st.secrets`.
-4. Deploy. You'll get a public URL (e.g.
+   This keeps both keys out of the public repo while still letting the
+   deployed app read them via `st.secrets`. The second line is only needed
+   if you want the Missing players tab to work without re-entering a key
+   each visit.
+4. Deploy (or, if already deployed, it'll pick up the push and redeploy on
+   its own within a minute or two). You'll get a public URL (e.g.
    `https://<something>.streamlit.app`) you can share with beta testers
    instead of sending a file.
 

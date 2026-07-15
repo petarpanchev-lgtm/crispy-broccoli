@@ -1,5 +1,6 @@
 .streamlit/secrets.toml
 odds_api_key.txt
+api_football_key.txt
 __pycache__/
 *.pyc
 .DS_Store

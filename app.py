@@ -343,7 +343,8 @@ with tab_log:
 with tab_injuries:
     st.subheader("Missing players")
     st.caption(
-        "Injuries, suspensions, and doubts for upcoming fixtures in the 5 leagues above, "
+        "Injuries, suspensions, and doubts for upcoming fixtures across the Premier League, "
+        "La Liga, Bundesliga, Serie A, Champions League, and the FIFA World Cup 2026, "
         "via API-Football's free /injuries endpoint -- separate provider and key from the "
         "odds side of this app. This is who's reported out or doubtful, days ahead of "
         "kickoff, not a predicted starting XI (nobody publishes that free and reliably -- "

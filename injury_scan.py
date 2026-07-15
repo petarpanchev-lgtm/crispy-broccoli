@@ -3,9 +3,9 @@
 Missing-players / injury-suspension scanner -- prototype.
 
 Pulls injury, suspension, and doubtful-player reports for upcoming fixtures
-in the top 5 European leagues + Champions League, using API-Football's free
-/injuries endpoint (https://www.api-football.com). Free tier: 100 requests/
-day, no card required.
+in the top 5 European leagues + Champions League + the FIFA World Cup 2026,
+using API-Football's free /injuries endpoint (https://www.api-football.com).
+Free tier: 100 requests/day, no card required.
 
 This is deliberately separate from the odds scanner (scan_live_odds.py /
 ev_scanner_lib.py) -- different provider, different key, different job. It
@@ -54,6 +54,16 @@ LEAGUES = {
     78: "Bundesliga",
     135: "Serie A",
     2: "Champions League",
+    1: "FIFA World Cup",
+}
+
+# The World Cup only happens once every 4 years -- its "season" is just the
+# tournament year (2026), not something that rolls over with the European
+# close season like the domestic leagues. Hardcoded rather than derived from
+# current_season_year() so this doesn't silently break once the calendar
+# rolls into the next European season while the World Cup is still recent.
+SEASON_OVERRIDES = {
+    1: 2026,  # FIFA World Cup 2026
 }
 
 FIXTURES_PER_LEAGUE = 10   # "next N" fixtures to check per competition
@@ -77,6 +87,10 @@ def current_season_year():
     whatever's scheduled once the season year rolls over."""
     now = datetime.datetime.utcnow()
     return now.year if now.month >= 7 else now.year - 1
+
+
+def season_for_league(league_id):
+    return SEASON_OVERRIDES.get(league_id, current_season_year())
 
 
 def api_get(path, params, api_key):
@@ -148,10 +162,10 @@ def run_raw_check(api_key):
 
 
 def run_full_scan(api_key, only_league=None):
-    season = current_season_year()
     leagues = {only_league: LEAGUES[only_league]} if only_league else LEAGUES
     report = []
     for league_id, league_name in leagues.items():
+        season = season_for_league(league_id)
         print(f"\n=== {league_name} (season {season}) ===")
         try:
             fixtures = fetch_next_fixtures(league_id, season, api_key)

@@ -32,6 +32,16 @@ LEAGUES = {
     78: "Bundesliga",
     135: "Serie A",
     2: "Champions League",
+    1: "FIFA World Cup",
+}
+
+# The World Cup only happens once every 4 years -- its "season" is just the
+# tournament year (2026), not something that rolls over with the European
+# close season like the domestic leagues. Hardcoded rather than derived from
+# current_season_year() so this doesn't silently break once the calendar
+# rolls into the next European season while the World Cup is still recent.
+SEASON_OVERRIDES = {
+    1: 2026,  # FIFA World Cup 2026
 }
 
 DEFAULT_FIXTURES_PER_LEAGUE = 5
@@ -44,6 +54,10 @@ def current_season_year():
     through July."""
     now = datetime.datetime.utcnow()
     return now.year if now.month >= 7 else now.year - 1
+
+
+def season_for_league(league_id):
+    return SEASON_OVERRIDES.get(league_id, current_season_year())
 
 
 def api_get(path, params, api_key):
@@ -92,7 +106,6 @@ def scan_injuries_all(api_key, league_ids=None, fixtures_per_league=DEFAULT_FIXT
                     or None if nothing was fetched -- for schema sanity-checking.
     """
     league_ids = league_ids or list(LEAGUES.keys())
-    season = current_season_year()
     rows = []
     stats = {
         "fixtures_checked": 0,
@@ -104,6 +117,7 @@ def scan_injuries_all(api_key, league_ids=None, fixtures_per_league=DEFAULT_FIXT
 
     for league_id in league_ids:
         league_name = LEAGUES.get(league_id, str(league_id))
+        season = season_for_league(league_id)
         try:
             fixtures = fetch_next_fixtures(league_id, season, api_key, n=fixtures_per_league)
             stats["requests_used"] += 1

@@ -118,6 +118,16 @@ MARKET_DEFS = [
 ]
 
 
+# Betting exchanges (Betfair Exchange, Matchbook) quote a last-matched back
+# price from a thin order book, not a fixed odds line, and charge commission
+# on winnings that isn't reflected in the quoted price at all. Comparing that
+# against a no-vig bookmaker fair line produces huge, illusory "edges" on
+# illiquid outcomes (seen live: a 25.9% "edge" on betfair_ex_eu for a heavy
+# underdog on a lower-profile match -- almost certainly a stale/thin resting
+# price, not real value). Excluded from the comparison set for that reason.
+EXCLUDED_BOOKS = {"betfair_ex_eu", "betfair_ex_uk", "betfair_ex_au", "matchbook", "smarkets"}
+
+
 def get_market(book, api_key):
     return next((m for m in book.get("markets", []) if m["key"] == api_key), None)
 
@@ -141,7 +151,7 @@ def process_market(books, market_def, home, away, all_rows, reference_books=REFE
     match_label = f"{home} vs {away}"
     found_any = False
     for book_key, book in books.items():
-        if book_key in reference_books:
+        if book_key in reference_books or book_key in EXCLUDED_BOOKS:
             continue
         mk = get_market(book, api_key)
         if not mk:

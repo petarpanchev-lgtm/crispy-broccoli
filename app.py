@@ -79,8 +79,9 @@ with st.sidebar:
     st.divider()
     st.caption(
         "Known gap: this API doesn't cover Bulgarian-specific bookmakers "
-        "(efbet, Winbet) -- it compares pan-EU books instead. BTTS coverage "
-        "is also patchier than 1X2/totals."
+        "(efbet, Winbet) -- it compares pan-EU books instead. Both Teams to "
+        "Score is not scanned at all -- it needs a different, more expensive "
+        "API endpoint (see the Both teams to score tab)."
     )
 
 if run_scan:
@@ -175,7 +176,15 @@ with tab_1x2:
 with tab_ou:
     render_market_tab("OU25", "Over/Under 2.5")
 with tab_btts:
-    render_market_tab("BTTS", "Both teams to score")
+    st.warning(
+        "Both Teams to Score isn't scanned by this app. The Odds API classes BTTS as an "
+        "\"Additional Market\" that only works through a separate per-event endpoint "
+        "(one API call per match, not one call per league) -- adding it to the same bulk "
+        "request as 1X2 and Over/Under actually broke the whole scan (HTTP 422) rather than "
+        "just coming back empty. Supporting it properly would multiply the credit cost a lot, "
+        "so it's left out for now rather than pretending it works. The calculator tab still "
+        "handles two-way markets like BTTS if you want to check one manually."
+    )
 
 with tab_calc:
     st.subheader("Try your own odds")

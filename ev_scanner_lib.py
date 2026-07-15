@@ -18,7 +18,13 @@ import requests
 
 API_BASE = "https://api.the-odds-api.com/v4"
 REGION = "eu"
-MARKETS_PARAM = "h2h,totals,btts"
+# NOTE: "btts" deliberately left out of the bulk markets param. The Odds API
+# docs list it under "Additional Markets", which require the separate
+# per-event endpoint (/events/{id}/odds) -- bundling it into this bulk
+# request caused a 422 across every sport during testing. See BTTS_SUPPORTED
+# below and the README for the honest story on this gap.
+MARKETS_PARAM = "h2h,totals"
+BTTS_SUPPORTED = False
 REFERENCE_BOOKS = ["pinnacle", "marathonbet"]
 EV_THRESHOLD_PCT = 2.0
 KELLY_FRACTION_DEFAULT = 0.25

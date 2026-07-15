@@ -132,8 +132,8 @@ def render_market_tab(market_key, market_label):
     )
 
     def highlight_value(row):
-        color = "background-color: #1c3b2c" if row["Value bet"] else ""
-        return [color] * len(row)
+        style = "background-color: #c6f0d8; color: #0a3d24; font-weight: 600" if row["Value bet"] else ""
+        return [style] * len(row)
 
     st.dataframe(
         display_df.style.format({"Odds": "{:.2f}", "Fair odds": "{:.2f}", "Edge %": "{:+.1f}%"}).apply(
